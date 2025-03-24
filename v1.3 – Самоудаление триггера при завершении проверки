@@ -1,0 +1,85 @@
+/**
+ * v1.3 – Самоудаление триггера при завершении проверки
+ * 
+ * Реализовано:
+ * - Проверка первых 30 непустых ссылок начиная с A1 (по умолчанию 7)
+ * - Пропуск пустых ячеек в столбце B
+ * - HTTP-код логируется в столбец D
+ * - Время логируется в столбец E (формат HH:mm:ss/dd, MM, yyyy)
+ * - Раскраска ячеек: зелёный (200), красный (404), жёлтый (другое), оранжевый (таймаут)
+ * - Подпись в note (например, "Not found", "не успели")
+ * - Если ссылки закончились или стоит "Проверка завершена" → скрипт сам отключает триггер
+ */
+
+function checkUrls_v1_3() {
+  const sheetName = "404 (не менять!)";
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+
+  // Остановить скрипт, если уже всё проверено
+  const statusCell = sheet.getRange("B1").getValue();
+  if (statusCell === "Проверка завершена") {
+    stopTrigger_404();
+    Logger.log("Проверка завершена. Триггер остановлен.");
+    return;
+  }
+
+  const startRow = parseInt(sheet.getRange("A1").getValue()) || 7;
+  const urls = sheet.getRange(`B${startRow}:B`).getValues().flat();
+  const maxChecks = 30;
+  let checked = 0;
+  let rowIndexes = [];
+
+  for (let i = 0; i < urls.length && checked < maxChecks; i++) {
+    const url = urls[i];
+    if (!url) continue;
+    const row = startRow + i;
+    rowIndexes.push(row);
+
+    let code = "", status = "", color = null;
+
+    try {
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+        timeout: 10
+      });
+
+      code = response.getResponseCode();
+
+      if (code === 200) {
+        status = "OK";
+        color = "#d9ead3"; // зелёный
+      } else if (code === 404) {
+        status = "Not found";
+        color = "#f4cccc"; // красный
+      } else {
+        status = `Code: ${code}`;
+        color = "#fff2cc"; // жёлтый
+      }
+    } catch (e) {
+      code = "timeout";
+      status = "не успели";
+      color = "#fce5cd"; // оранжевый
+    }
+
+    // Пишем результат и визуальное оформление
+    sheet.getRange(`D${row}`).setValue(code);
+    sheet.getRange(`E${row}`).setValue(
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm:ss/dd, MM, yyyy")
+    );
+    sheet.getRange(`D${row}`).setBackground(color).setNote(status);
+
+    checked++;
+  }
+
+  if (checked === 0) {
+    sheet.getRange("A1").setValue(7);
+    sheet.getRange("B1").setValue("Проверка завершена");
+    stopTrigger_404();
+    Logger.log("Все ссылки закончились. Триггер остановлен.");
+    return;
+  }
+
+  const lastRowChecked = rowIndexes[rowIndexes.length - 1];
+  sheet.getRange("A1").setValue(lastRowChecked + 1);
+}
