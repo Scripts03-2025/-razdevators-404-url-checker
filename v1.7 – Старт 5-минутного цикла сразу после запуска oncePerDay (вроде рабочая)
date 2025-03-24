@@ -1,0 +1,134 @@
+/**
+ * v1.7 – Старт 5-минутного цикла сразу после запуска oncePerDay
+ * 
+ * Теперь суточный запуск не просто сбрасывает A1/B1, а сразу запускает цикл!
+ */
+
+function checkUrls_v1_4() {
+  const sheetName = "404 (не менять!)";
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const props = PropertiesService.getScriptProperties();
+  const runType = props.getProperty("nextRunType");
+
+  if (runType === "oncePerDay") {
+    sheet.getRange("A1").setValue(7);
+    sheet.getRange("B1").setValue("");
+    props.deleteProperty("nextRunType");
+    createTriggerEvery5Minutes(); // 🔥 ВАЖНО: теперь цикл сразу стартует
+    Logger.log("Метка oncePerDay обнаружена. Сброс B1/A1. Новый цикл начат + старт 5-минутного триггера.");
+  }
+
+  const statusCell = sheet.getRange("B1").getValue();
+  if (statusCell === "Проверка завершена") {
+    removeTrigger("checkUrls_v1_4");
+    createTriggerOncePerDay();
+    Logger.log("Проверка завершена. Ставим триггер на завтра.");
+    return;
+  }
+
+  const startRow = parseInt(sheet.getRange("A1").getValue()) || 7;
+  const urls = sheet.getRange(`B${startRow}:B`).getValues().flat();
+  const maxChecks = 30;
+  let checked = 0;
+  let rowIndexes = [];
+
+  for (let i = 0; i < urls.length && checked < maxChecks; i++) {
+    const url = urls[i];
+    if (!url) continue;
+    const row = startRow + i;
+    rowIndexes.push(row);
+
+    let code = "", status = "", color = null;
+
+    try {
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+        timeout: 10
+      });
+
+      code = response.getResponseCode();
+
+      if (code === 200) {
+        status = "OK";
+        color = "#d9ead3";
+      } else if (code === 404) {
+        status = "Not found";
+        color = "#f4cccc";
+      } else {
+        status = `Code: ${code}`;
+        color = "#fff2cc";
+      }
+    } catch (e) {
+      code = "timeout";
+      status = "не успели";
+      color = "#fce5cd";
+    }
+
+    sheet.getRange(`D${row}`).setValue(code);
+    sheet.getRange(`E${row}`).setValue(
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm:ss/dd, MM, yyyy")
+    );
+    sheet.getRange(`D${row}`).setBackground(color).setNote(status);
+
+    checked++;
+  }
+
+  if (checked === 0) {
+    sheet.getRange("A1").setValue(7);
+    sheet.getRange("B1").setValue("Проверка завершена");
+    removeTrigger("checkUrls_v1_4");
+    createTriggerOncePerDay();
+    Logger.log("Все ссылки закончились. Запланирована новая проверка через сутки.");
+    return;
+  }
+
+  const lastRowChecked = rowIndexes[rowIndexes.length - 1];
+  sheet.getRange("A1").setValue(lastRowChecked + 1);
+
+  const triggers = ScriptApp.getProjectTriggers();
+  const has5MinTrigger = triggers.some(t => t.getHandlerFunction() === "checkUrls_v1_4" && t.getEventType() === ScriptApp.EventType.CLOCK);
+
+  if (!has5MinTrigger) {
+    createTriggerEvery5Minutes();
+    Logger.log("Возобновлён 5-минутный цикл проверки.");
+  }
+}
+
+function removeTrigger(functionName) {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === functionName) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  }
+}
+
+function createTriggerEvery5Minutes() {
+  ScriptApp.newTrigger("checkUrls_v1_4")
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+}
+
+function createTriggerOncePerDay() {
+  PropertiesService.getScriptProperties().setProperty("nextRunType", "oncePerDay");
+  ScriptApp.newTrigger("checkUrls_v1_4")
+    .timeBased()
+    .at(new Date(Date.now() + 24 * 60 * 60 * 1000))
+    .create();
+}
+
+/**
+ * 📄 Лог версий (24.03.2025)
+ * | Версия | Дата       | Что нового                                                                 | Примечание                                  |
+ * |---------|------------|----------------------------------------------------------------------------------|-----------------------------------------------|
+ * | v1.0    | 24.03.2025 | Базовая проверка ссылок, лог в D и E                                      | Скан 30 с 7-й строки                   |
+ * | v1.1    | 24.03.2025 | Привязка к вкладке "404 (не менять!)"                                   | Работает только с ней               |
+ * | v1.2    | 24.03.2025 | Остановка скрипта, если в B1 "Проверка завершена"         | Не тратит лимиты                  |
+ * | v1.3    | 24.03.2025 | Скрипт сам удаляет триггер, если всё проверено        | Защита от сжигания лимитов   |
+ * | v1.4    | 24.03.2025 | Полный автоцикл: запуск, 24ч отдых, повтор                         | Чистый автопилот                    |
+ * | v1.5    | 24.03.2025 | Сброс A1/B1 при запуске суточного триггера                   | Авто-подготовка к циклу                |
+ * | v1.6    | 24.03.2025 | Использован ScriptProperties для чёткого определения oncePerDay   | Больше не путается в триггерах           |
+ * | v1.7    | 24.03.2025 | Цикл 5 минут стартует сразу после oncePerDay                        | Не ждёт завершения, стартует сам       |
+ */
