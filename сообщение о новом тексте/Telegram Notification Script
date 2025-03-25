@@ -1,0 +1,60 @@
+/**
+ * 📨 Telegram Notification Script
+ * ------------------------------------
+ * Проверяет Google Таблицу во вкладке "404 (не менять!)" начиная с 7-й строки.
+ * Если в колонке B найдена новая ссылка (без пометки в колонке C),
+ * то отправляет сообщение в Telegram и записывает пометку вида:
+ * "Отправлено 25.03.2025 16:00" в колонку C.
+ * Работает с триггером каждые 4 часа.
+ * 
+ * 🔄 Версии:
+ * v1.0.0 — Базовая реализация (отправка новых ссылок и пометка времени)
+ * v1.1.0 — Добавлено описание и лог версий (25.03.2025)
+ */
+
+const TELEGRAM_TOKEN = '8136586676:AAHvXeM4ih9ECPdSwzGM5P0O1p2_GYb_iTk';
+const TELEGRAM_CHAT_ID = '8003377702'; // ← твой chat_id
+
+function checkNewLinksAndNotify() {
+  const sheetName = '404 (не менять!)';
+  const linkColumn = 2; // колонка B
+  const statusColumn = 3; // колонка C
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const data = sheet.getRange(7, linkColumn, sheet.getLastRow() - 6).getValues(); // начиная с 7-й строки
+  const statuses = sheet.getRange(7, statusColumn, data.length).getValues();
+
+  for (let i = 0; i < data.length; i++) {
+    const url = data[i][0];
+    const status = statuses[i][0];
+
+    if (url && !status) {
+      const message = `📰 Новый текст размещён:\n${url}`;
+      sendTelegramMessage(message);
+
+      const now = new Date();
+      const formattedTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm');
+      const statusMessage = `Отправлено ${formattedTime}`;
+      sheet.getRange(i + 7, statusColumn).setValue(statusMessage); // Пишем в C
+      SpreadsheetApp.flush();
+    }
+  }
+}
+
+function sendTelegramMessage(message) {
+  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+  const payload = {
+    chat_id: TELEGRAM_CHAT_ID,
+    text: message,
+    parse_mode: 'Markdown'
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  };
+
+  UrlFetchApp.fetch(url, options);
+}
