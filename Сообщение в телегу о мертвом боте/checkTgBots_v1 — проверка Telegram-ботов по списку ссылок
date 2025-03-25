@@ -1,0 +1,40 @@
+// checkTgBots_v1 — проверка Telegram-ботов по списку ссылок
+// Версия 1.0 (2025-03-25)
+
+const CTB_TELEGRAM_TOKEN = '8165444239:AAFGA_0Qi_sdFGaEKLc95Hr5fZjCd2UIWnM';
+const CTB_TELEGRAM_CHAT_ID = '8003377702';
+
+function checkTgBots_v1() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const startRow = 7;
+  const maxChecks = 100;
+
+  const data = sheet.getRange(startRow, 2, sheet.getLastRow() - startRow + 1, 1).getValues();
+  let count = 0;
+  let deadBots = [];
+
+  for (let i = 0; i < data.length && count < maxChecks; i++) {
+    const url = data[i][0];
+    const row = startRow + i;
+    if (!url) continue;
+
+    let status = "Неизвестно";
+    let code = "";
+
+    try {
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+      });
+
+      code = response.getResponseCode();
+      const html = response.getContentText().toLowerCase();
+
+      if (html.includes("start bot") || html.includes("start") || html.includes("startbutton")) {
+        status = "ЖИВОЙ";
+      } else if (html.includes("send message")) {
+        status = "ЗАБАНЕН";
+        deadBots.push(url);
+      } else {
+        status = "ПОД ВОПРОСОМ";
+      }
