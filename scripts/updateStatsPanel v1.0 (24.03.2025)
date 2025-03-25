@@ -1,0 +1,29 @@
+/**
+ * updateStatsPanel v1.0 (24.03.2025)
+ * 
+ * 📊 Функция статистики по результатам проверки ссылок
+ * 
+ * Что делает:
+ * - Считает общее количество кодов (проверенных текстов)
+ * - Подсчитывает сколько среди них 404 и 403
+ * - Определяет дату последней проверки из колонки E
+ * - Выводит всё это в ячейки H1–H4 на листе "404 (не менять!)"
+ * 
+ * История версий:
+ * v1.0 – 24.03.2025 – базовая реализация статистики (всего, 404, 403, дата)
+ */
+
+function updateStatsPanel() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("404 (не менять!)");
+  const codes = sheet.getRange("D7:D").getValues().flat().filter(Boolean);
+
+  const total = codes.length;
+  const count404 = codes.filter(c => String(c) === "404").length;
+  const count403 = codes.filter(c => String(c) === "403").length;
+  const lastDate = sheet.getRange("E7:E").getValues().flat().filter(Boolean).pop();
+
+  sheet.getRange("H1").setValue(`Всего текстов: ${total}`);
+  sheet.getRange("H2").setValue(`404 ошибок: ${count404}`);
+  sheet.getRange("H3").setValue(`403 ошибок: ${count403}`);
+  sheet.getRange("H4").setValue(`Последняя проверка: ${lastDate || "-"}`);
+}
