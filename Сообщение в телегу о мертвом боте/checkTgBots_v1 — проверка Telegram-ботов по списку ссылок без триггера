@@ -1,0 +1,78 @@
+// checkTgBots_v1 — проверка Telegram-ботов по списку ссылок
+// Версия 1.6 (2025-03-25)
+
+const CTB_TELEGRAM_TOKEN = '8165444239:AAFGA_0Qi_sdFGaEKLc95Hr5fZjCd2UIWnM';
+const CTB_TELEGRAM_CHAT_ID = '8003377702';
+
+function checkTgBots_v1() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("test_bot!");
+  const startRow = 7;
+  const maxChecks = 100;
+
+  const data = sheet.getRange(startRow, 2, sheet.getLastRow() - startRow + 1, 1).getValues();
+  let count = 0;
+  let deadBots = [];
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+
+  for (let i = 0; i < data.length && count < maxChecks; i++) {
+    const url = data[i][0];
+    const row = startRow + i;
+    if (!url) continue;
+
+    let status = "Неизвестно";
+    let code = "";
+
+    try {
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+      });
+
+      code = response.getResponseCode();
+      const html = response.getContentText().toLowerCase();
+
+      if (html.includes('<div class="tgme_page_description">') && html.includes('you can contact')) {
+        status = "DEAD: tgme_page_description";
+        deadBots.push(url);
+      } else if (html.includes("start bot")) {
+        status = "start bot";
+      } else if (html.includes("startbutton")) {
+        status = "startbutton";
+      } else if (html.includes("start")) {
+        status = "start";
+      } else {
+        status = "ПОД ВОПРОСОМ";
+      }
+
+    } catch (e) {
+      status = "ОШИБКА";
+      code = e.toString();
+    }
+
+    sheet.getRange(row, 4).setValue(status);
+    sheet.getRange(row, 5).setValue(code);
+    sheet.getRange(row, 6).setValue(now);
+
+    count++;
+  }
+
+  if (deadBots.length > 0) {
+    const message = `☠️ Найдены мёртвые Telegram-боты:\n\n${deadBots.join('\n')}`;
+    ctb_sendTelegram(message);
+  }
+}
+
+function ctb_sendTelegram(text) {
+  const url = `https://api.telegram.org/bot${CTB_TELEGRAM_TOKEN}/sendMessage`;
+  const payload = {
+    chat_id: CTB_TELEGRAM_CHAT_ID,
+    text: text,
+    parse_mode: "Markdown"
+  };
+
+  UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload)
+  });
+}
