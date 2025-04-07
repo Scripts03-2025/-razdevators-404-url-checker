@@ -1,0 +1,53 @@
+// 404 Telegram Notifier v1.0
+// https://chatgpt.com/c/67f3ca15-e1bc-8010-afd7-110fad0af306
+
+function send404ToTelegram() {
+  const TELEGRAM_BOT_TOKEN = '8165444239:AAFGA_0Qi_sdFGaEKLc95Hr5fZjCd2UIWnM';
+  const TELEGRAM_CHAT_ID = '8003377702';
+  
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('404 (не менять!)');
+  const data = sheet.getDataRange().getValues();
+
+  // Проходим с 1-й строки (пропуская заголовки)
+  for (let i = 1; i < data.length; i++) {
+    const status = data[i][3]; // Колонка D
+    const url = data[i][1];    // Колонка B
+
+    if (status === 404 && url) {
+      const message = `*Бан 404*\n\n${url}`;
+      sendTelegramMessage(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message);
+    }
+  }
+}
+
+function sendTelegramMessage(token, chatId, message) {
+  const payload = {
+    chat_id: chatId,
+    text: message,
+    parse_mode: 'Markdown'
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload)
+  };
+
+  UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage`, options);
+}
+
+/*
+📖 Как работает скрипт (v1.0):
+
+1. Скрипт проходит по листу "404 (не менять!)".
+2. В каждой строке проверяет, равна ли колонка D значению 404.
+3. Если да — берёт ссылку из колонки B.
+4. Отправляет сообщение в Telegram в формате:
+   - *Бан 404*
+   - ссылка из колонки B
+5. Сообщения отправляются каждый раз при запуске, даже если это повторные строки.
+
+Параметры заданы внутри скрипта:
+- Chat ID: 8003377702
+- Bot Token: 8165444239:AAFGA_0Qi_sdFGaEKLc95Hr5fZjCd2UIWnM
+*/
